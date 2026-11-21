@@ -12,37 +12,36 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import officers  # noqa: E402
 import tom  # noqa: E402
-from common import REASON_CODES, VERDICTS, cheapest_verdict  # noqa: E402
+from common import REASON_CODES, VERDICTS  # noqa: E402
 from loader import load_folder, read_jsonl  # noqa: E402
 
-NEAR_CERTAIN = 0.9      # Tom and Oliver both this sure and agreeing: their verdict stands
-ESCALATE_ROUTE = 0.2    # average P(escalate) at or above this: Ivy decides, otherwise Daniel
+NEAR_CERTAIN = 0.9      # Oliver at least this sure and agreeing with a sure Tom: the verdict stands
+ESCALATE_ROUTE = 0.2    # Oliver's P(escalate) at or above this: escalation is in play, so Ivy decides
 
 
 # ---------------------------------------------------------------- the pipeline
 def decide_case(bundle):
-    tom_d = tom.decide(bundle)
+    tom_d = tom.decide(bundle)            # Tom's options: which verdicts are still possible
     oliver_d = officers.oliver(bundle, tom_d)
     if oliver_d is None:
-        return tom_d  # no LLM available: the rules engine decides alone
+        return tom_d  # no LLM available: Tom decides alone (his verdict is the safe choice)
 
-    # Gate: agreement with near certainty stands. Tom's wording is used (rules give exact facts).
-    if (tom_d["verdict"] == oliver_d["verdict"]
-            and tom_d["probs"].get(tom_d["verdict"], 0) >= NEAR_CERTAIN
+    # Gate: a sure Tom and a near-certain Oliver agreeing -> that verdict stands (Tom's exact wording).
+    if (tom_d["options"] == [oliver_d["verdict"]]
             and oliver_d["probs"].get(oliver_d["verdict"], 0) >= NEAR_CERTAIN):
         return tom_d
 
-    # Otherwise a specialist decides between the two verdicts still in play.
-    average = {v: (tom_d["probs"].get(v, 0) + oliver_d["probs"].get(v, 0)) / 2 for v in VERDICTS}
-    if average["ESCALATE"] >= ESCALATE_ROUTE:
-        final = officers.ivy(bundle, tom_d, oliver_d)
+    # Otherwise a specialist chooses. In play: Tom's options plus Oliver's verdict.
+    in_play = set(tom_d["options"]) | {oliver_d["verdict"]}
+    if "ESCALATE" in in_play or oliver_d["probs"].get("ESCALATE", 0) >= ESCALATE_ROUTE:
+        final = officers.ivy(bundle, tom_d, oliver_d)     # ESCALATE or RFI (CLOSE ruled out)
     else:
-        final = officers.daniel(bundle, tom_d, oliver_d)
-    if final is None:  # specialist failed: take the cheaper verdict by expected cost
-        final = tom_d if tom_d["verdict"] == cheapest_verdict(average) else oliver_d
+        final = officers.daniel(bundle, tom_d, oliver_d)  # RFI or CLOSE (ESCALATE ruled out)
+    if final is None:  # specialist failed: the safest verdict in play
+        final = tom_d if tom_d["verdict"] == next(v for v in VERDICTS if v in in_play) else oliver_d
 
-    # Safety rule: a language model may make a verdict safer, never less safe.
-    if final["verdict"] == "CLOSE" and tom_d["verdict"] != "CLOSE":
+    # Safety rule: nothing closes unless Tom left CLOSE open.
+    if final["verdict"] == "CLOSE" and "CLOSE" not in tom_d["options"]:
         final = tom_d
     return final
 

@@ -38,32 +38,43 @@ Where this file and the hackathon's `README.md` / `BRIEF.html` disagree, **the h
                   case bundle (loader.py)
                  /                        \
       Officer Tom (tom.py)          Officer Oliver (officers.py)
-      rules from POLICY.md          LLM, sees Tom's findings
+      rules: which verdicts are     LLM, every case, sees Tom's
+      still possible ("options")    findings when Tom is sure
                  \                        /
-           gate (main.py): agree AND both >= 0.9 sure?
+      gate (main.py): Tom sure AND Oliver agrees with >= 0.9?
           /                  |                        \
-   yes: verdict stands   avg P(escalate) >= 0.2    otherwise
+   yes: verdict stands   ESCALATE in play?          otherwise
                          Inspector Ivy              Detective Daniel
                          ESCALATE vs RFI            RFI vs CLOSE
                                    \               /
              safety rule -> finish() checks -> one JSON line
 ```
 
-1. **Officer Tom** gives a three-way verdict with a confidence for each verdict.
-2. **Officer Oliver** decides the same case independently with an LLM.
-3. **Gate.** If they agree and both are at least 0.9 sure, Tom's decision stands (his reason has exact facts).
-4. Otherwise, if the average P(escalate) is 0.2 or more, **Inspector Ivy** chooses ESCALATE or RFI
-   ("does anything look criminal?"). If not, **Detective Daniel** chooses RFI or CLOSE ("does the
-   evidence explain every alert?").
-5. **Safety rule: the LLM may make a verdict safer, never less safe.** If the final verdict is CLOSE
-   but Tom didn't close, Tom's decision is used. A model mistake can therefore never cause a 10-point wrongful close.
+1. **Officer Tom** applies the policy rules and says which verdicts are still possible (his `options`):
+
+   | Tom's options | When |
+   |---|---|
+   | `["CLOSE"]` | Sure: a document explains every alert and there are no red flags |
+   | `["CLOSE", "RFI"]` | Explained, but the proof is soft (e.g. only part of an own-account transfer is proven) |
+   | `["RFI"]` | Sure: the policy names RFI (own-account transfers at 5x the declared profile or more) |
+   | `["RFI", "ESCALATE"]` | Something is unexplained, or a list match nothing on file settles |
+   | `["ESCALATE"]` | Sure: a red flag (fraud report, staff note, device export, listed party in control) |
+
+2. **Officer Oliver** decides **every** case independently with an LLM (three-way, with probabilities).
+3. **Gate.** If Tom is sure (one option) and Oliver gives the same verdict with at least 0.9, it stands
+   (Tom's reason is used, as rules give exact facts).
+4. Otherwise a specialist chooses. **In play** = Tom's options plus Oliver's verdict. If ESCALATE is in play
+   (or Oliver gives it 0.2 or more), **Inspector Ivy** chooses ESCALATE or RFI ("does anything look
+   criminal?"). If not, **Detective Daniel** chooses RFI or CLOSE ("does the evidence explain every alert?").
+5. **Safety rule: nothing closes unless Tom left CLOSE open** (`["CLOSE"]` or `["CLOSE", "RFI"]`). The LLMs
+   can make a verdict safer, never less safe, so a model mistake can't cause a 10-point wrongful close.
 6. `finish()` fixes the reason code if it doesn't fit the verdict and drops any evidence ID that
    doesn't exist. Any crash on a case writes a safe ESCALATE line.
-7. **No API key, or the LLM call fails?** Tom decides alone. The system always runs.
+7. **No API key, or the LLM call fails?** Tom's `verdict` (his best guess) is used. The system always runs.
 
 The thresholds (0.9 and 0.2) are starting values. Jad tunes them on the hand labels.
-When choosing between verdicts from probabilities, use `common.cheapest_verdict` (lowest
-expected cost), not the most likely verdict. For example, CLOSE only beats RFI when P(close) > ~0.77.
+Tom is deliberately cautious: when unsure he leaves RFI or ESCALATE open rather than risk a close
+(CLOSE only beats RFI when P(close) > ~0.77).
 
 ## The contract: two data formats
 
@@ -97,8 +108,9 @@ decision = {
     "reason_code": "INVOICE_MATCHES",            # must be in common.REASON_CODES[verdict]
     "reason": "2-4 sentences naming this case's own documents, people and amounts.",
     "evidence": ["INV-7291", "BK-T380846439"],   # IDs exactly as in the files
-    "probs": {"CLOSE": 0.95, "RFI": 0.05, "ESCALATE": 0.0},
-    "officer": "tom",                            # tom | oliver | ivy | daniel
+    "probs": {"CLOSE": 0.95, "RFI": 0.05, "ESCALATE": 0.0},  # LLM officers only; Tom gives {}
+    "officer": "oliver",                         # tom | oliver | ivy | daniel
+    "options": ["CLOSE"],                        # verdicts still possible: Tom sets it, LLMs get [verdict]
 }
 ```
 
@@ -148,7 +160,8 @@ The skeleton already runs end to end (every case escalated, 0 validator errors).
    - payments_fx: **£10,000 or more** to anyone but the client needs an invoice or contract on file
    - earlier reviews cover only what they describe, never new or larger activity
    - dormant accounts, documented events, business records, refunds, group companies
-3. Put a high probability (≥ 0.9) only on verdicts a rule clearly settles. Uncertain → `unsure()`.
+3. Give a single option only when a rule clearly settles the case. Otherwise leave two options open
+   (`["CLOSE", "RFI"]` or `["RFI", "ESCALATE"]`) so the right specialist decides.
 4. Write specific reasons: name the document, the counterparty and the amount.
 5. Context only, **never a trigger on its own**: round amounts, a shared device/IP/contact,
    a recipient added the same day, crypto or gambling counterparties.

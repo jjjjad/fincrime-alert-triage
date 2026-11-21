@@ -32,15 +32,19 @@ COST = {
 }
 
 
-def make_decision(verdict, reason_code, reason, evidence, probs, officer):
+def make_decision(verdict, reason_code, reason, evidence, probs, officer, options=None):
     """Build a decision dict. Every officer returns one of these.
 
-    verdict:     "CLOSE", "RFI" or "ESCALATE"
+    verdict:     "CLOSE", "RFI" or "ESCALATE" (for Tom when unsure: his best guess, used if no LLM)
     reason_code: one of REASON_CODES[verdict]
     reason:      2 to 4 sentences naming this case's own documents, people and amounts
     evidence:    list of IDs exactly as they appear in the files
-    probs:       how likely the officer thinks each verdict is, e.g. {"CLOSE": 0.9, "RFI": 0.1, "ESCALATE": 0.0}
+    probs:       LLM officers: how likely each verdict is, e.g. {"CLOSE": 0.9, "RFI": 0.1, "ESCALATE": 0.0}.
+                 Tom leaves it empty and uses `options` instead.
     officer:     who decided: "tom", "oliver", "ivy" or "daniel"
+    options:     the verdicts still possible. Tom gives one of:
+                 ["CLOSE"], ["CLOSE", "RFI"], ["RFI"], ["RFI", "ESCALATE"], ["ESCALATE"].
+                 LLM officers leave it out (it defaults to [verdict]).
     """
     return {
         "verdict": verdict,
@@ -49,6 +53,7 @@ def make_decision(verdict, reason_code, reason, evidence, probs, officer):
         "evidence": list(evidence),
         "probs": probs,
         "officer": officer,
+        "options": options or [verdict],
     }
 
 

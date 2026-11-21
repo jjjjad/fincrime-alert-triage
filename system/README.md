@@ -11,15 +11,15 @@ the IDs of the evidence relied on.
 RoboCop is a team of "officers":
 
 1. **Officer Tom** (`tom.py`) is a deterministic rules engine written from each institution's
-   `POLICY.md`. He gives a first three-way verdict and how confident he is.
+   `POLICY.md`. He says which verdicts are still possible: CLOSE, CLOSE or RFI, RFI, RFI or ESCALATE, or ESCALATE.
 2. **Officer Oliver** (`officers.py`) is a language model that checks the same case independently,
    with Tom's findings as context.
-3. **Gate** (`main.py`). If Tom and Oliver agree and both are near certain, that verdict stands.
+3. **Gate** (`main.py`). If Tom is sure and Oliver agrees with near certainty, that verdict stands.
 4. Otherwise a specialist chooses between the two verdicts still in play:
    **Inspector Ivy** (ESCALATE or RFI) if there is any real chance of escalation, else
    **Detective Daniel** (RFI or CLOSE).
 5. **Safety rule.** A language model may make a verdict safer, never less safe: nothing is closed
-   unless Tom closed it. If anything fails, the case is escalated, never dropped.
+   unless Tom left CLOSE open. If anything fails, the case is escalated, never dropped.
 
 ## Model, time and cost
 

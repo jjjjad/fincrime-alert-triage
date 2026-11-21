@@ -22,7 +22,6 @@ from common import REASON_CODES, VERDICTS, make_decision
 MAX_WINDOW_TXNS = 250    # transactions inside the review window (alerted ones are always kept)
 MAX_HISTORY_TXNS = 60    # most recent transactions before the window (dormancy, refunds, usual pattern)
 MAX_DOC_CHARS = 6000     # per document
-TOM_FINDINGS_MIN = 0.6   # Tom's findings are shown to Oliver only if Tom is at least this sure
 
 # ---------------------------------------------------------------- prompts
 ROLE = """You are a financial-crime analyst at a regulated firm, triaging transaction-monitoring alerts.
@@ -237,7 +236,7 @@ def _system_prompt(bundle, task, allowed):
 
 def _tom_findings(tom):
     """What Oliver may see of Tom: his findings and the IDs he relied on, never his verdict."""
-    if not tom or max((tom.get("probs") or {}).values(), default=0) < TOM_FINDINGS_MIN:
+    if not tom or len(tom.get("options") or []) != 1:  # Tom unsure: no findings to pass on
         return "NOTES FROM THE AUTOMATED RULES CHECK: no rule settled this case."
     return ("NOTES FROM THE AUTOMATED RULES CHECK (leads to verify, not a verdict): " + str(tom.get("reason"))
             + " IDs it relied on: " + ", ".join(str(i) for i in tom.get("evidence") or []) + ".")

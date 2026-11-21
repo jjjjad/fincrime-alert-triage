@@ -29,13 +29,15 @@ The rules' limits differ per institution, but the alerts have already applied th
 doesn't re-check limits. The policy settings Tom applies are the same at all four, plus one
 extra at payments_fx (a payment of £10,000+ to anyone but the client needs an invoice/contract).
 
-decide(bundle) runs a list of checks in order. Each check looks at the bundle and either
-returns a decision (see common.make_decision) or None if it doesn't apply. The first check
-that returns a decision wins. If no check applies, Tom says he is unsure.
-
-Tom's "probs" are his confidence. Only put a high probability (0.9 or more) on a verdict when a
-policy rule clearly settles the case: the gate in main.py lets a confident Tom + Oliver
-agreement stand without asking a specialist.
+WHAT TOM OUTPUTS
+A decision (common.make_decision) whose "options" are the verdicts still possible:
+  ["CLOSE"]              sure: a document explains every alert, no red flags
+  ["CLOSE", "RFI"]       explained, but the proof is soft             -> Daniel decides
+  ["RFI"]                sure: the policy names RFI (own accounts at 5x the profile or more)
+  ["RFI", "ESCALATE"]    something is unexplained / nothing settles it -> Ivy decides
+  ["ESCALATE"]           sure: a red flag (fraud report, staff note, listed party in control...)
+Oliver checks every case; a sure Tom stands only if Oliver agrees (see main.py). "verdict" is
+Tom's best guess, used when there is no LLM. Nothing can close unless CLOSE is in Tom's options.
 """
 import re
 from datetime import datetime
@@ -102,11 +104,11 @@ def sentence_with(text, pattern):
     return next((s for s in sentences if re.search(pattern, s, re.I)), sentences[0]).strip()
 
 
-def decision(verdict, code, sentences, ids, sure):
-    """Tom's decision. `sure` goes on the verdict; the rest is split between the other two."""
-    probs = {v: sure if v == verdict else (1 - sure) / 2 for v in ("CLOSE", "RFI", "ESCALATE")}
+def decision(verdict, code, sentences, ids, options=None):
+    """Tom's decision. `options` are the verdicts still possible (default: only `verdict`, i.e. sure)."""
     # dict.fromkeys drops repeats (two alerts can flag the same transaction) but keeps the order.
-    return make_decision(verdict, code, " ".join(dict.fromkeys(sentences)), dict.fromkeys(ids), probs, "tom")
+    return make_decision(verdict, code, " ".join(dict.fromkeys(sentences)), dict.fromkeys(ids), {}, "tom",
+                         options)
 
 
 # ---------------------------------------------------------------- entry point
@@ -122,34 +124,34 @@ def decide(bundle):
         if d["type"] == "sending_bank_fraud_report":
             return decision("ESCALATE", "ESC_MULE_ACTIVITY", [
                 f"{d['title']} ({d['doc_id']}) reports a scam: {sentence_with(d['text'], 'sent £')}",
-                f"{name}'s account received victims' money and passed it on, so it goes to the MLRO."], ids, 0.95)
+                f"{name}'s account received victims' money and passed it on, so it goes to the MLRO."], ids)
         if d["type"] == "staff_note":
             code = ("ESC_STRUCTURING" if re.search(r"threshold|under £|below £", d["text"])
                     else "ESC_HIGH_RISK_CORRIDOR" if "TM06" in rules else "ESC_UNEXPLAINED_FUNDS")
             return decision("ESCALATE", code, [
                 f"Staff note {d['doc_id']}: {sentence_with(d['text'], 'threshold|under £|below £|unwilling|refused')}",
-                "This is a sign of crime, so the case is escalated rather than asking the customer."], ids, 0.95)
+                "This is a sign of crime, so the case is escalated rather than asking the customer."], ids)
         if d["type"] == "device_export":
             row = [c.strip() for c in d["text"].strip().splitlines()[-1].strip("|").split("|")]
             if "," in row[2] or row[3] != "United Kingdom":
                 return decision("ESCALATE", "ESC_ACCOUNT_MISUSE", [
                     f"Device export {d['doc_id']} shows device {row[0]} logging in to customer account(s) "
                     f"{row[2]} from {row[3]}.",
-                    f"Someone other than {name} appears to use the account."], ids, 0.9)
+                    f"Someone other than {name} appears to use the account."], ids)
 
     # 2. Check each alert. Each finding is (verdict or None if unexplained, code, sentence, ids).
     findings = [check_alert(bundle, a, txns, name) for a in bundle["alerts"]]
     ids = [i for f in findings for i in f[3]]
     for f in findings:
         if f[0] == "ESCALATE":
-            return decision("ESCALATE", f[1], [f[2], "The case is escalated to the MLRO."], ids, 0.95)
+            return decision("ESCALATE", f[1], [f[2], "The case is escalated to the MLRO."], ids)
     for f in findings:
         if f[0] is None:
             return unsure(bundle, txns, name, f)
     for f in findings:
         if f[0] == "RFI":
             return decision("RFI", f[1], [f[2], "Nothing else on file is suspicious, so the customer is asked."],
-                            ids, 0.8)
+                            ids, ["RFI", "ESCALATE"])  # Ivy checks whether anything else is concerning
 
     # 3. Every alert is explained. Policy guard: own-account transfers at 5x the profile or more -> RFI.
     multiple = max([a["measured"].get("multiple", 0) for a in bundle["alerts"] if a["rule_id"] == "TM01"] or [0])
@@ -157,9 +159,9 @@ def decide(bundle):
         return decision("RFI", "RFI_UPDATED_PROFILE", [
             findings[0][2],
             f"These own-account transfers bring activity to {multiple:.1f} times {name}'s declared profile, "
-            f"so ask {name} for an updated expected income or volume."], ids, 0.85)
+            f"so ask {name} for an updated expected income or volume."], ids)
     sentences = [f[2] for f in findings][:3]
-    return decision("CLOSE", findings[0][1], sentences + ["Every alert is explained by documents on file."], ids, 0.9)
+    return decision("CLOSE", findings[0][1], sentences + ["Every alert is explained by documents on file."], ids)
 
 
 # ---------------------------------------------------------------- per alert
@@ -279,6 +281,12 @@ def list_check(bundle, alert, txn):
                 return ("ESCALATE", "ESC_LISTED_PARTY",
                         f"{d['title']} ({d['doc_id']}) gives {listed}'s date of birth as {m.group(1)}, the same as "
                         f"internal list entry {entry['entry_id']}.", ids + [d["doc_id"]])
+            if d["type"] == "gift_letter":  # written by the payer themselves: not independent proof
+                return ("RFI", "RFI_COUNTERPARTY_DETAILS",
+                        f"The {describe(txn)} matched internal list entry {entry['entry_id']} ({listed}, born "
+                        f"{entry['date_of_birth']}) on name; only the payer's own letter ({d['doc_id']}) gives a "
+                        f"different date of birth, {m.group(1)}. Ask for independent proof of {listed}'s identity, "
+                        f"such as a passport or driving licence.", ids + [d["doc_id"]])
             return ("CLOSE", "LIST_MATCH_DIFFERENT_PARTY",
                     f"{listed} shares a name with internal list entry {entry['entry_id']}, but {d['title']} "
                     f"({d['doc_id']}) gives a date of birth of {m.group(1)}, not {entry['date_of_birth']}.",
@@ -304,7 +312,7 @@ def list_check(bundle, alert, txn):
 
 
 def unsure(bundle, txns, name, finding):
-    """Something is unexplained. Tom splits his confidence between RFI and ESCALATE and never closes."""
-    return make_decision("ESCALATE", finding[1], finding[2] + f" The rules engine cannot explain {name}'s "
-                         "activity from the documents on file, so the case cannot be closed.",
-                         finding[3], {"CLOSE": 0.0, "RFI": 0.5, "ESCALATE": 0.5}, "tom")
+    """Something is unexplained: RFI or ESCALATE (Ivy decides). Best guess without an LLM: ESCALATE."""
+    return decision("ESCALATE", finding[1], [finding[2], f"The rules engine cannot explain {name}'s "
+                    "activity from the documents on file, so the case cannot be closed."],
+                    finding[3], ["RFI", "ESCALATE"])
