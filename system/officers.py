@@ -109,7 +109,17 @@ You are the independent second pair of eyes. Reach your own verdict from the pol
 If notes from the automated rules check are given, treat them as leads to verify against the
 documents, not as a verdict: they can be incomplete or wrong.
 Choose RFI over CLOSE whenever a document you would need is not on file. Choose ESCALATE over RFI
-whenever there is a real sign of crime."""
+whenever there is a real sign of crime.
+Always ESCALATE, never RFI (an RFI would tip the customer off), when there is: a fraud or scam report
+from another bank or a victim; a mule pattern (many unrelated payers in, money passed on quickly to
+one destination or withdrawn as cash, especially if the customer says they were paid to forward
+money); third-party money that no document on file explains; large funds far above the declared
+income that arrive (cash or third parties) and leave quickly; or customer explanations that
+conflict with each other or with the documents. Asking such a customer for more detail is an RFI that tips them off.
+RETURNING_CUSTOMER (dormant account reactivated) needs a document on file showing the customer was
+re-verified or re-identified around the reactivation, and new activity that fits their profile. A
+known payee or the customer's own name on a funding payment is not enough. If you cannot name that
+document by ID, never use RETURNING_CUSTOMER: answer RFI."""
 
 IVY_TASK = """YOUR TASK: CLOSE has been ruled out for this case. Decide between ESCALATE and RFI only.
 Your one question: does anything here look criminal?
@@ -130,7 +140,15 @@ Your one question: does the evidence on file explain every alert?
 - RFI if any alert is left without an explanation on file, or the policy asks for a document that
   is missing. Say exactly what to ask the customer for.
 A wrongful CLOSE costs more than three times a needless RFI, so answer CLOSE only if you are at
-least 80% sure. Put probability 0 on ESCALATE."""
+least 80% sure. Put probability 0 on ESCALATE.
+Never CLOSE if there is a fraud or scam report from another bank or a victim, a mule pattern (many
+unrelated payers in, money passed on quickly to one destination or withdrawn as cash, especially if
+the customer says they were paid to forward money), or third-party money that no document on file
+explains. Answer RFI with a very low P(CLOSE) and name that sign in your reason.
+RETURNING_CUSTOMER (dormant account reactivated) needs a document on file showing the customer was
+re-verified or re-identified around the reactivation, and new activity that fits their profile. A
+known payee or the customer's own name on a funding payment is not enough. If you cannot name that
+document by ID, never use RETURNING_CUSTOMER: answer RFI."""
 
 
 # ---------------------------------------------------------------- the case as text
