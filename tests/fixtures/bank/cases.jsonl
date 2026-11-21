@@ -1,6 +1,0 @@
-{"case_id": "CS1", "customer_id": "C1", "alert_ids": ["A1"], "window_start": "2025-09-01", "window_end": "2025-09-30"}
-{"case_id": "CS2", "customer_id": "C2", "alert_ids": ["A2"], "window_start": "2025-09-01", "window_end": "2025-09-30"}
-{"case_id": "CS3", "customer_id": "C3", "alert_ids": ["A3a", "A3b"], "window_start": "2025-09-01", "window_end": "2025-09-30"}
-{"case_id": "CS4", "customer_id": "C4", "alert_ids": ["A4"], "window_start": "2025-09-01", "window_end": "2025-09-30"}
-{"case_id": "CS5", "customer_id": "C5", "alert_ids": ["A5"], "window_start": "2025-09-01", "window_end": "2025-09-30"}
-{"case_id": "CS6", "customer_id": "C6", "alert_ids": ["A6"], "window_start": "2025-09-01", "window_end": "2025-09-30"}

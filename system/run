@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Usage: system/run <institution_folder> <output.jsonl>
-# Works from any working directory; only reads the given folder, only writes the output file.
-set -euo pipefail
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec python3 -B "$HERE/main.py" "$@"
+# Usage: system/run <institution folder> <output file>
+# Finds main.py next to this script, so it works from any working directory.
+exec python3 -B "$(cd "$(dirname "$0")" && pwd)/main.py" "$@"
