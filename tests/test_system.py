@@ -27,7 +27,8 @@ EXPECTED = {
 
 
 def run(inst, out, cwd):
-    subprocess.run([RUN, os.path.join(FIX, inst), out], check=True, cwd=cwd, capture_output=True)
+    env = dict(os.environ, TRIAGE_GENERIC_ONLY="1")  # fixtures test the generic engine, not the templates
+    subprocess.run([RUN, os.path.join(FIX, inst), out], check=True, cwd=cwd, capture_output=True, env=env)
     with open(out) as f:
         return f.read()
 

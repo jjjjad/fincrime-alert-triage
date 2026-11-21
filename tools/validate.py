@@ -34,7 +34,9 @@ def main(folder: str, out: str) -> int:
             errors.append(f"{c.id}: bad verdict {v!r}")
         elif code not in CODES[v]:
             errors.append(f"{c.id}: reason_code {code} does not belong to {v}")
-        n = len(re.findall(r"[.!?](\s|$)", r.get("reason", "")))
+        # sentence ends: punctuation followed by a capital/digit/quote or end of text
+        # (so "Sp. z o.o." or "Ltd. paid" don't count)
+        n = len(re.findall(r"[.!?](?=\s+[A-Z0-9\"'(£]|\s*$)", r.get("reason", "")))
         if not 2 <= n <= 4:
             warnings.append(f"{c.id}: reason has {n} sentences (want 2-4)")
         bad = [i for i in r.get("evidence", []) if i not in valid_ids]

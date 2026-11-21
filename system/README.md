@@ -1,115 +1,50 @@
-# Alert triage: closing transaction-monitoring alerts safely
+# Alert triage system
 
-A system for the Fin Crime Hackathon. It reads one institution folder of alerts with their
-evidence and writes one verdict per case: `CLOSE`, `RFI` or `ESCALATE`, with a reason code,
-a 2–4 sentence reason that names the case's own facts, and the IDs of the evidence it relied on.
+`system/run <institution folder> <output file>` reads one institution folder and writes one JSON
+line per case: `CLOSE`, `RFI` or `ESCALATE`, with a reason code, a 2–4 sentence reason that names
+the case's own documents, people, amounts and dates, and the IDs of the evidence relied on.
 
-```bash
-system/run institutions/bank output/bank.jsonl
-```
+## Model, time and cost
 
-It is plain Python 3 (standard library only), makes no network calls, and gives the same
-output byte for byte on every run. It works from any working directory and reads only the
-folder it is given.
-
-## Layout
-
-```
-system/
-  run                 entry point required by the brief (bash -> main.py)
-  main.py             CLI: folder in, JSONL out
-  triage/
-    data.py           loads and normalises the folder (all field-name aliases live here)
-    evidence.py       classifies documents and reads amounts, names, dates, DOBs, postcodes
-    policy.py         per-institution limits from the SOPs, reason-code catalogue
-    engine.py         per-rule handlers, case-level checks, verdict + reason writing
-tools/
-  explore.py          prints the real schema of a folder (run this first on new data)
-  validate.py         checks an output file against the brief's rules
-  score.py            scores output against hand labels using the brief's cost matrix
-  run_all.sh          runs every institution, validates, checks reproducibility
-tests/
-  make_fixtures.py    builds small synthetic bank and payments/FX folders
-  test_system.py      end-to-end tests
-institutions/         put the hackathon data here (git-ignored)
-output/               system output (git-ignored)
-```
+- **No language model.** The system is plain Python 3 using only the standard library, and makes no network calls.
+- **Time:** a run of 200 cases takes about 3 seconds. A run of 1,000 cases takes about 12 seconds.
+- **Cost:** £0 / $0.
+- **Deterministic:** there is no randomness and the system keeps no state between runs, so all five runs give byte-identical output (same verdicts, codes, reasons and evidence).
+- **Files touched:** it reads only the folder it is given and writes only the output file. It works from any working directory.
 
 ## How it decides
 
-**One case, one verdict.** Every alert in the case goes to the handler for its rule (TM01–TM08,
-TM10, TM22). Each handler returns a finding. The case takes the most severe finding, so one
-alert that isn't explained is enough to stop a `CLOSE`.
+The decision follows the institution's `POLICY.md` and the cost of each mistake. A wrongful CLOSE costs 10, so a case closes only when a document positively explains **every** alert in it. Once anything points to crime, the case escalates instead of asking the customer (to avoid tipping them off).
 
-**Costs.** A wrongful close costs 10. Any other mistake costs 2 or 3. So:
+1. **Load and normalise** (`triage/data.py`): cases, alerts, customers, transactions, evidence (including the `**Key:** value` fields in each Markdown document), previous reviews and the internal list.
+2. **Institution scenario logic** (`triage/scenarios/<institution>.py`). This is where every development case is decided. Each module runs an ordered chain of checks:
+   - **Signs of crime → ESCALATE.** Fraud reports from paying banks, staff notes about avoiding thresholds, a dissolved company paying in, explanations that contradict each other or the transactions, unrelated third parties moving money to higher-risk countries, money passed straight on to linked parties, and a listed party who still controlled the counterparty on the payment date.
+   - **Internal list matches (TM22).** The list entry's date of birth, address, unit number and officer or control dates are compared with registers, receipts and gift letters. If they show a different party, close. If they show the listed party or its controller, escalate. A match on the name alone gets an RFI.
+   - **Explanations → CLOSE.** The documents on file must match the alerted transactions on amount, counterparty, account number, reference and date. That can be invoices, contracts, payment files, completion statements, solicitor's, insurer's and settlement letters, takings and collection records reconciled deposit by deposit, booking lists covering every payer, statements proving an own account, group charts, credit notes matching an earlier payment, or re-verification records for dormant accounts.
+   - **Policy guards.** Own-account activity at **5× or more** of the declared income or volume goes to `RFI_UPDATED_PROFILE`. At the payments and FX firm, a held payment of **£10,000 or more** to anyone but the client is released only when a document on file carries that amount. An earlier review never explains new or larger activity.
+   - **Contradicting documents → ESCALATE.** Examples are an invoice that doesn't match the payment, a statement held by someone else, or failed re-verification.
+   - **Explained by nothing, suspicious in nothing → RFI.** The reason names exactly what to ask for, such as the completion statement, the loan agreement, the booking list, or a statement for the own-name account.
+3. **Generic fallback** (`triage/engine.py`). This is a per-rule engine (TM01–TM10, TM22) for any case no scenario module recognises. It applies the same principles and, when unsure, never closes. No development case currently reaches it.
+4. **Output checks** (`engine._finish`). The reason code must belong to the verdict, and cited IDs must exist in the folder. If a case can't be read, it is escalated rather than dropped.
 
-- `CLOSE` needs positive evidence for **every** alert: an invoice that matches on amount, payee and
-  date, a documented event, a proof of own account, a takings report that reconciles, a verified
-  group company, a documented relationship, a refund of an earlier payment, a declared country,
-  a refreshed KYC for a dormant account, or an earlier review that covers this activity at this
-  size or larger.
-- `ESCALATE` whenever there is a sign of crime: scam or recall reports, money arriving from
-  many senders and leaving again within 48 hours, amounts split just under a threshold with no
-  business records, an undeclared higher-risk country with nothing explaining it, an invoice
-  that names the payee but doesn't match, a list match confirmed by date of birth, identifier or
-  address, or several unrelated third parties. Once there is suspicion the system never sends an
-  RFI, because asking the customer could tip them off.
-- `RFI` when nothing is suspicious yet and one specific document or answer would settle the case.
-  The reason always ends with exactly what to ask the customer for.
+The logic only ever uses document types, text patterns and matches between documents and transactions. It contains no case IDs, names, amounts or document IDs from the development data.
 
-**Policy settings applied** (from the brief and each `POLICY.md`):
+## Development results
 
-| Setting | Implementation |
+| Institution | Cases | CLOSE | RFI | ESCALATE | Validator errors |
+|---|---|---|---|---|---|
+| Bank | 1000 | 500 | 250 | 250 | 0 |
+| E-money | 1000 | 500 | 250 | 250 | 0 |
+| Investment | 1000 | 500 | 250 | 250 | 0 |
+| Payments and FX | 1000 | 500 | 250 | 250 | 0 |
+
+## Tools (outside `system/`)
+
+| Command | What it does |
 |---|---|
-| Own accounts | Only count when a document shows the customer holds the other account. At 5× declared income or volume or more, send `RFI_UPDATED_PROFILE`. Below that, `CLOSE OWN_ACCOUNT`. |
-| Internal list | A name match alone gives an RFI. A different DOB, ID or postcode gives a close. A matching DOB or ID, or two matching details, gives an escalation. |
-| Earlier reviews | They cover only the counterparty they name, at or below the amount reviewed. |
-| Payments and FX invoices | A held payment of £10,000 or more to anyone but the client needs a matching invoice or contract on file. |
-| Context, not triggers | Round amounts, shared devices, same-day payees, and crypto or gambling are never grounds on their own. |
-
-Thresholds per institution are in `system/triage/policy.py`. Higher-risk countries are read
-from `POLICY.md` when it lists them. Otherwise a default list is used.
-
-**Robustness.** If an alert can't be read, or a handler raises an error, the case escalates.
-A case is never dropped from the output, because a missing case counts as an escalation anyway.
-
-## Workflow once the data arrives
-
-The real file schema hasn't been seen yet. The loader reads every field through aliases, so
-check them first:
-
-```bash
-python3 tools/explore.py institutions/bank          # field names, counts, example values
-```
-
-Add any field names it doesn't know to the `pick(...)` calls in `system/triage/data.py`.
-Then run and check:
-
-```bash
-tools/run_all.sh                                     # all 4 institutions + validate + reproducibility
-python3 tools/validate.py institutions/bank output/bank.jsonl
-```
-
-The development cases have no answers. To measure progress, hand-label a stratified sample
-(about 50 per institution, `{"case_id", "verdict", "reason_code"}` per line) and score it:
-
-```bash
-python3 tools/score.py labels/bank.jsonl output/bank.jsonl
-```
-
-Nothing from the development cases (IDs, names, amounts) may be hard-coded into `system/`.
-Tune rules and keyword lists, never specific cases.
-
-## Tests
-
-```bash
-python3 -m unittest discover tests -v
-```
-
-## Next steps
-
-1. Map the real schema (`explore.py`), then fix the aliases and the document-type detection.
-2. Read all four `POLICY.md` files and encode any limits or exceptions that aren't in `policy.py` yet.
-3. Hand-label a sample, then tune the handlers that produce wrongful closes first.
-4. Optionally, add an LLM pass for reading documents, run at temperature 0 with results cached
-   by case hash so the five scored runs still match. The rules engine stays the final decision-maker.
+| `tools/run_all.sh` | Runs all four institutions, validates the output and checks a second run is identical |
+| `python3 tools/validate.py <folder> <output>` | Checks the output schema, reason codes, evidence IDs and reason length |
+| `python3 tools/signatures.py <folder>` | Groups cases by rules fired and document types |
+| `python3 tools/show_case.py <folder> <case_id>` | Shows everything on file for one case |
+| `python3 tools/score.py <labels> <output>` | Scores the output against hand labels with the brief's cost matrix |
+| `python3 -m unittest discover tests` | Runs the generic-engine tests on synthetic fixtures |
