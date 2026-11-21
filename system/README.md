@@ -38,6 +38,28 @@ The logic only ever uses document types, text patterns and matches between docum
 | Investment | 1000 | 500 | 250 | 250 | 0 |
 | Payments and FX | 1000 | 500 | 250 | 250 | 0 |
 
+## Planned next version: RoboCop
+
+> **Not implemented yet.** The submitted system is the rules engine described above. This is the
+> design for the next version.
+
+![RoboCop alert triage pipeline](../docs/robocop-pipeline.png)
+
+RoboCop is a team of language-model agents, called through OpenRouter as the brief requires:
+
+- **Officer Tom** (model A) makes a first three-way call on each case.
+- **Officer Oliver** (a different model, B) double-checks it independently.
+- **Verdict stands:** if Tom and Oliver agree with near certainty, that verdict is final.
+- **Inspector Ivy** takes cases where CLOSE has been ruled out, and chooses between ESCALATE and RFI.
+- **Detective Daniel** takes cases where ESCALATE has been ruled out, and chooses between RFI and CLOSE.
+
+To keep within the brief's limits, the plan is:
+
+- **Reproducible:** temperature 0, with answers cached inside `system/` and keyed by a hash of the case, so all five runs match.
+- **Within budget:** about $4 per 200 cases.
+- **Grounded:** the rules engine's findings (matched documents, policy guards, red flags) go into every prompt as evidence.
+- **Safe fallback:** if no API key is set or a call fails, the rules engine decides the case.
+
 ## Tools (outside `system/`)
 
 | Command | What it does |
