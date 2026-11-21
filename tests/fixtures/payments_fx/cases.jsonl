@@ -1,0 +1,2 @@
+{"case_id": "PC1", "customer_id": "P1", "alert_ids": ["PA1"], "held_payment_id": "PT1"}
+{"case_id": "PC2", "customer_id": "P1", "alert_ids": ["PA2"], "held_payment_id": "PT2"}

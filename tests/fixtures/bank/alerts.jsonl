@@ -1,0 +1,7 @@
+{"alert_id": "A1", "rule_id": "TM05", "transaction_ids": ["T1"]}
+{"alert_id": "A2", "rule_id": "TM01", "transaction_ids": ["T2"]}
+{"alert_id": "A3a", "rule_id": "TM04", "transaction_ids": ["T3-0", "T3-1", "T3-2", "T3-3", "T3-4", "T3-5", "T3-6", "T3-7", "T3-8", "T3-9", "T3-10", "T3-11"]}
+{"alert_id": "A3b", "rule_id": "TM02", "transaction_ids": ["T3-0", "T3-1", "T3-2", "T3-3", "T3-4", "T3-5", "T3-6", "T3-7", "T3-8", "T3-9", "T3-10", "T3-11", "T3-OUT"]}
+{"alert_id": "A4", "rule_id": "TM22", "transaction_ids": ["T4"], "list_entry_id": "L1"}
+{"alert_id": "A5", "rule_id": "TM01", "transaction_ids": ["T5"]}
+{"alert_id": "A6", "rule_id": "TM07", "transaction_ids": ["T6"]}

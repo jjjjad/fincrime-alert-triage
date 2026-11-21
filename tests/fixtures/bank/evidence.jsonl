@@ -1,0 +1,5 @@
+{"doc_id": "BUS-1", "customer_id": "C1", "type": "business_records", "title": "Weekly takings report"}
+{"doc_id": "SCAM-1", "customer_id": "C3", "type": "external_report", "title": "Sender bank notification"}
+{"doc_id": "KYC-4", "customer_id": "C4", "type": "kyc", "title": "Payee details"}
+{"doc_id": "STMT-5", "customer_id": "C5", "type": "bank_statement", "title": "Savings account statement"}
+{"doc_id": "KYC-6", "customer_id": "C6", "type": "kyc", "title": "Customer due diligence refresh"}

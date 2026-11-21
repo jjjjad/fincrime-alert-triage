@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Usage: system/run <institution_folder> <output.jsonl>
+# Works from any working directory; only reads the given folder, only writes the output file.
+set -euo pipefail
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec python3 -B "$HERE/main.py" "$@"

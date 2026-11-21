@@ -1,0 +1,6 @@
+{"customer_id": "C1", "name": "Fernbrook Bakery Ltd", "customer_type": "business", "occupation": "bakery", "expected_monthly_turnover": 20000}
+{"customer_id": "C2", "name": "Fernbrook Two Ltd", "customer_type": "business", "occupation": "bakery", "expected_monthly_turnover": 20000}
+{"customer_id": "C3", "name": "Fernbrook Three Ltd", "customer_type": "business", "occupation": "bakery", "expected_monthly_turnover": 20000}
+{"customer_id": "C4", "name": "Alex Moor", "customer_type": "individual", "declared_annual_income": 48000}
+{"customer_id": "C5", "name": "Priya Shah", "customer_type": "individual", "declared_annual_income": 36000}
+{"customer_id": "C6", "name": "Tom Reed", "customer_type": "individual", "declared_annual_income": 30000}
