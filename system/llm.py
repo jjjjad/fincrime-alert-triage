@@ -15,6 +15,7 @@ import hashlib
 import json
 import os
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -50,7 +51,7 @@ def _cache_path(model, system_prompt, user_prompt):
 def _write_atomic(path, obj):
     """Write through a temporary file, so a crash or a parallel run never leaves half a file."""
     os.makedirs(CACHE_DIR, exist_ok=True)
-    tmp = path + "." + str(os.getpid()) + ".tmp"
+    tmp = path + "." + str(os.getpid()) + "." + str(threading.get_ident()) + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False)
     os.replace(tmp, path)

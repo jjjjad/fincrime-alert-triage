@@ -3,6 +3,7 @@
 Owner: Jad (A). Loads the cases, runs the officers, applies the gate, checks each answer and
 writes one JSON line per case. Any error on a case gives a safe ESCALATE line, never a gap.
 """
+import concurrent.futures
 import json
 import os
 import sys
@@ -17,6 +18,7 @@ from loader import load_folder, read_jsonl  # noqa: E402
 
 NEAR_CERTAIN = 0.9      # Oliver at least this sure and agreeing with a sure Tom: the verdict stands
 ESCALATE_ROUTE = 0.2    # Oliver's P(escalate) at or above this: escalation is in play, so Ivy decides
+WORKERS = 8             # cases decided at once; LLM calls mostly wait on the network, so threads overlap
 
 
 # ---------------------------------------------------------------- the pipeline
@@ -101,12 +103,16 @@ def main():
             rows.append(fallback(case, error))
         bundles = []
 
-    for bundle in bundles:
+    def run_one(bundle):
         try:
-            rows.append(finish(bundle, decide_case(bundle)))
+            return finish(bundle, decide_case(bundle))
         except Exception as error:
             print(bundle["case"]["case_id"], "failed:", repr(error), file=sys.stderr)
-            rows.append(fallback(bundle["case"], error))
+            return fallback(bundle["case"], error)
+
+    # Cases are independent, so decide several at once. map() keeps the output in case order.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        rows.extend(pool.map(run_one, bundles))
 
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
