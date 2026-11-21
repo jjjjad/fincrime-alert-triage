@@ -23,7 +23,10 @@ RoboCop is a team of "officers":
 
 ## Model, time and cost
 
-- Model: TODO (via OpenRouter, temperature 0, answers cached in `system/cache/`).
-- Time for 200 cases: TODO.
-- Cost for 200 cases: TODO.
+- Model: `openai/gpt-4.1-mini` via OpenRouter, temperature 0, fixed seed, answers cached in
+  `system/cache/`. One call per case for Oliver, plus one for Ivy or Daniel on cases the gate
+  does not settle. Failed calls are retried twice and never cached.
+- Time for 200 cases: TODO (measure; not yet run with a key).
+- Cost for 200 cases: TODO (measure with `python3 system/llm.py`, which totals the token and cost
+  log in `system/cache/usage.jsonl`). Estimate from list prices: about $1.50.
 - Without `OPENROUTER_API_KEY`, the system runs on Tom alone.
